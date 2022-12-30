@@ -1,52 +1,41 @@
 import React, { useState } from 'react';
+import { TextInput, StyleSheet, View, Text } from 'react-native';
 import {
-  TextInput,
-  StyleSheet,
-  NativeSyntheticEvent,
-  TextInputChangeEventData,
-  View,
-  Text,
-} from 'react-native';
-// components/Typeahead.tsx
-import {
-  debounce,
   debounceTime,
   distinctUntilChanged,
   filter,
   from,
   map,
   Subject,
+  switchMap,
 } from 'rxjs';
+import { getAirportsByName } from '../api/client';
 import { useSubscription } from '../hooks/useSubscription';
-
-const SUGGESTIONS = [
-  'react',
-  'react native',
-  'redux',
-  'redux toolkit',
-  'redux.js',
-  'redux saga',
-  'remix',
-  'reactive extension',
-  'rxjs',
-];
 
 const input$ = new Subject<string>();
 
 export function Typeahead() {
-  const [suggestions, setSuggestions] = useState<string[]>(SUGGESTIONS);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+
   function handleChangeText(text: string) {
     input$.next(text);
   }
 
+  function getAirports(name: string) {
+    return from(getAirportsByName(name)).pipe(
+      map((airports) => airports.map((airport) => airport.name).slice(0, 10))
+    );
+  }
+
   useSubscription(
     input$.pipe(
+      map((text) => text.trim()),
       debounceTime(300),
       filter((text) => text.length > 1),
-      distinctUntilChanged()
+      distinctUntilChanged(),
+      switchMap((text) => getAirports(text))
     ),
-    (text) =>
-      setSuggestions(SUGGESTIONS.filter((word) => word.indexOf(text) > -1))
+    (airportNames) => setSuggestions(airportNames)
   );
 
   return (
@@ -57,8 +46,10 @@ export function Typeahead() {
         onChangeText={handleChangeText}
         style={styles.input}
       />
-      {suggestions.map((suggestion) => (
-        <Text>{suggestion}</Text>
+      {suggestions.map((suggestion, index) => (
+        <Text style={styles.label} key={`${suggestion}-${index}`}>
+          {suggestion}
+        </Text>
       ))}
     </View>
   );
@@ -77,5 +68,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 16,
     width: '100%',
+  },
+  label: {
+    padding: 4,
   },
 });
